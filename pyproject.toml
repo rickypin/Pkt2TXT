@@ -1,0 +1,154 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pcap-batch-decoder"
+version = "1.0.0"
+description = "A high-performance batch PCAP/PCAPNG decoder based on PyShark"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    { name = "PCAP Decoder Team", email = "pcap.decoder@example.com" }
+]
+keywords = ["pcap", "pcapng", "network", "packet", "decode", "pyshark", "wireshark"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "pyshark>=0.6.0",
+    "click>=8.0.0",
+    "tqdm>=4.60.0",
+    "psutil>=5.8.0",
+    "colorama>=0.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-html>=3.0.0",
+    "pytest-xdist>=3.0.0",
+    "coverage>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
+]
+docs = [
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "myst-parser>=0.18.0",
+]
+
+[project.scripts]
+pcap-decoder = "pcap_decoder.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/pcap-decoder/pcap-batch-decoder"
+Documentation = "https://pcap-decoder.readthedocs.io/"
+Repository = "https://github.com/pcap-decoder/pcap-batch-decoder.git"
+Issues = "https://github.com/pcap-decoder/pcap-batch-decoder/issues"
+Changelog = "https://github.com/pcap-decoder/pcap-batch-decoder/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pcap_decoder"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/pcap_decoder",
+    "/tests",
+    "/docs",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov=pcap_decoder --cov-report=term-missing --cov-report=html --html=report.html --cov-fail-under=80"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["pcap_decoder"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.7"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pyshark.*",
+    "tqdm.*",
+    "psutil.*",
+]
+ignore_missing_imports = true 

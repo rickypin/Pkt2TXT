@@ -1,0 +1,19 @@
+# PCAP/PCAPNG 批量解码器依赖
+
+# 核心依赖
+pyshark>=0.6.0         # PCAP解析库
+click>=8.0.0           # 命令行接口
+tqdm>=4.60.0           # 进度条显示
+
+# 数据处理
+dataclasses-json>=0.5.0   # 数据类JSON序列化
+
+# 测试依赖
+pytest>=7.0.0          # 测试框架
+pytest-cov>=4.0.0      # 测试覆盖率
+pytest-mock>=3.6.0     # 测试模拟
+
+# 开发工具
+black>=22.0.0          # 代码格式化
+flake8>=4.0.0          # 代码检查
+mypy>=0.900            # 类型检查 

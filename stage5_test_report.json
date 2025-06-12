@@ -1,0 +1,82 @@
+{
+  "stage": 5,
+  "start_time": "2025-06-12T15:03:54.942972",
+  "tests": {
+    "unit_tests": {
+      "total_tests": 3,
+      "passed_tests": 1,
+      "failed_tests": 2,
+      "test_files": {
+        "test_scanner.py": "failed",
+        "test_decoder.py": "failed",
+        "test_extractor.py": "passed"
+      },
+      "duration": 0.545781135559082
+    },
+    "integration_tests": {
+      "test_file": "test_integration.py",
+      "status": "failed",
+      "duration": 0.21561908721923828,
+      "details": {}
+    },
+    "performance_tests": {
+      "test_file": "test_performance.py",
+      "status": "failed",
+      "duration": 0.06117606163024902,
+      "performance_metrics": {},
+      "details": {}
+    },
+    "real_data_compatibility": {
+      "test_data_available": false,
+      "sample_directories": 0,
+      "sample_files": 0,
+      "compatibility_test": "not_run",
+      "details": {}
+    },
+    "quality_verification": {
+      "test_coverage": {},
+      "code_quality": {
+        "module_structure": "good",
+        "error_handling": "implemented",
+        "documentation": "present",
+        "type_hints": "partial"
+      },
+      "module_tests": {
+        "scanner.py": {
+          "has_test": true,
+          "test_file": "test_scanner.py"
+        },
+        "decoder.py": {
+          "has_test": true,
+          "test_file": "test_decoder.py"
+        },
+        "extractor.py": {
+          "has_test": true,
+          "test_file": "test_extractor.py"
+        },
+        "formatter.py": {
+          "has_test": true,
+          "test_file": "test_formatter.py"
+        },
+        "processor.py": {
+          "has_test": true,
+          "test_file": "test_processor.py"
+        }
+      }
+    }
+  },
+  "summary": {
+    "total_duration": 0.822761,
+    "end_time": "2025-06-12T15:03:55.765733",
+    "total_tests": 5,
+    "passed_tests": 1,
+    "failed_tests": 4,
+    "success_rate": 20.0,
+    "stage_5_complete": false,
+    "recommendations": [
+      "需要修复失败的测试用例",
+      "检查错误日志并修复问题"
+    ]
+  },
+  "errors": []
+}
