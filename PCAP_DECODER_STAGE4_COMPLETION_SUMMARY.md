@@ -188,14 +188,14 @@ error_report = error_collector.generate_error_report()
 ## 📁 交付文件清单
 
 ### 核心模块
-- ✅ `pcap_decoder/utils/resource_manager.py` - 资源管理核心模块
-- ✅ `pcap_decoder/utils/errors.py` - 错误处理模块（已存在，功能完善）
-- ✅ `pcap_decoder/core/processor.py` - 增强版批量处理器
-- ✅ `pcap_decoder/utils/__init__.py` - 模块导出更新
+- ✅ `utils/resource_manager.py` - 资源管理核心模块
+- ✅ `utils/errors.py` - 错误处理模块（已存在，功能完善）
+- ✅ `core/processor.py` - 增强版批量处理器
+- ✅ `utils/__init__.py` - 模块导出更新
 
 ### 测试验证
-- ✅ `pcap_decoder/validate_stage4.py` - 快速验证脚本
-- ✅ `pcap_decoder/test_stage4.py` - 完整测试套件
+- ✅ `validate_stage4.py` - 快速验证脚本
+- ✅ `test_stage4.py` - 完整测试套件
 - ✅ `PCAP_DECODER_STAGE4_COMPLETION_SUMMARY.md` - 完成总结报告
 
 ### 文档输出

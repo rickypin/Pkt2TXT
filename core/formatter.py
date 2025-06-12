@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Iterator
 from datetime import datetime
 import hashlib
-from .decoder import DecodeResult
+from core.decoder import DecodeResult
 
 logger = logging.getLogger(__name__)
 

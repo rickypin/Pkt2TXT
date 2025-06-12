@@ -23,19 +23,19 @@ pip install -r requirements.txt
 
 ```bash
 # 基本用法
-python -m pcap_decoder -i /path/to/pcap/files -o /path/to/output
+python3 cli.py -i /path/to/pcap/files -o /path/to/output
 
 # 并发处理
-python -m pcap_decoder -i ./samples -o ./results -j 4
+python3 cli.py -i ./samples -o ./results -j 4
 
 # 详细输出模式
-python -m pcap_decoder -i ./samples -o ./results -v
+python3 cli.py -i ./samples -o ./results -v
 
 # 限制处理包数
-python -m pcap_decoder -i ./samples -o ./results --max-packets 100
+python3 cli.py -i ./samples -o ./results --max-packets 100
 
 # 试运行模式（只扫描，不处理）
-python -m pcap_decoder -i ./samples -o ./results --dry-run
+python3 cli.py -i ./samples -o ./results --dry-run
 ```
 
 ### 参数说明

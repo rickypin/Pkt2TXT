@@ -3,16 +3,16 @@
 包含进度显示、错误处理、配置管理、资源管理等实用工具
 """
 
-from .progress import RealTimeProgressMonitor, ProgressTracker, SimpleProgressBar
-from .errors import (
+from utils.progress import RealTimeProgressMonitor, ProgressTracker, SimpleProgressBar
+from utils.errors import (
     PCAPDecoderError, 
     FileError, 
     DecodeError, 
     ValidationError, 
     ErrorCollector
 )
-from .config import DecoderConfig
-from .resource_manager import (
+from utils.config import DecoderConfig
+from utils.resource_manager import (
     ResourceManager,
     ResourceMonitor, 
     MemoryManager,

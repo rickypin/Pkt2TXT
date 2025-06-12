@@ -69,14 +69,16 @@ case $STAGE in
         echo "1.1 模块导入测试:"
         python -c "
 try:
-    from pcap_decoder import cli, core, utils
+    from core.scanner import DirectoryScanner
+    from utils.errors import ErrorCollector
+    import cli
     print('✅ 模块导入成功')
 except ImportError as e:
     print(f'❌ 模块导入失败: {e}')
 "
         
         echo "1.2 CLI帮助信息测试:"
-        if python -m pcap_decoder --help > /dev/null 2>&1; then
+        if python3 cli.py --help > /dev/null 2>&1; then
             echo "✅ CLI帮助信息正常"
         else
             echo "❌ CLI帮助信息异常"
@@ -87,7 +89,7 @@ except ImportError as e:
         echo "=== 阶段2: 解码引擎验证 ==="
         echo "2.1 目录遍历测试:"
         python -c "
-from pcap_decoder.core.scanner import DirectoryScanner
+from core.scanner import DirectoryScanner
 scanner = DirectoryScanner()
 try:
     files = scanner.scan_directory('$TEST_DIR', max_depth=2)
@@ -105,7 +107,7 @@ except Exception as e:
         test_file=$(find "$TEST_DIR" -name "*.pcap" -o -name "*.pcapng" | head -1)
         if [ -n "$test_file" ]; then
             python -c "
-from pcap_decoder.core.decoder import PacketDecoder
+from core.decoder import PacketDecoder
 decoder = PacketDecoder()
 try:
     result = decoder.decode_file('$test_file')
@@ -123,7 +125,7 @@ except Exception as e:
     3)
         echo "=== 阶段3: 输出格式验证 ==="
         echo "3.1 JSON格式化测试:"
-        python -m pcap_decoder -i "$TEST_DIR/IPTCP-200ips" -o "$OUTPUT_DIR/stage3_test" --dry-run
+        python3 cli.py -i "$TEST_DIR/IPTCP-200ips" -o "$OUTPUT_DIR/stage3_test" --dry-run
         if [ $? -eq 0 ]; then
             echo "✅ 输出格式化正常"
         else
@@ -131,7 +133,7 @@ except Exception as e:
         fi
         
         echo "3.2 并发处理测试:"
-        timeout 30 python -m pcap_decoder -i "$TEST_DIR" -o "$OUTPUT_DIR/concurrent_test" -j 2 --max-packets 10
+        timeout 30 python3 cli.py -i "$TEST_DIR" -o "$OUTPUT_DIR/concurrent_test" -j 2 --max-packets 10
         if [ $? -eq 0 ]; then
             json_count=$(find "$OUTPUT_DIR/concurrent_test" -name "*.json" | wc -l)
             echo "✅ 并发处理完成，生成 $json_count 个JSON文件"
@@ -146,7 +148,7 @@ except Exception as e:
         mkdir -p "$OUTPUT_DIR/error_test"
         echo "invalid pcap data" > "$OUTPUT_DIR/error_test/invalid.pcap"
         
-        python -m pcap_decoder -i "$OUTPUT_DIR/error_test" -o "$OUTPUT_DIR/error_output" --error-report
+        python3 cli.py -i "$OUTPUT_DIR/error_test" -o "$OUTPUT_DIR/error_output" --error-report
         if [ -f "$OUTPUT_DIR/error_output/error_report.json" ]; then
             echo "✅ 错误处理正常，生成错误报告"
         else
@@ -154,7 +156,7 @@ except Exception as e:
         fi
         
         echo "4.2 空目录容错测试:"
-        python -m pcap_decoder -i "$TEST_DIR/empty" -o "$OUTPUT_DIR/empty_test"
+        python3 cli.py -i "$TEST_DIR/empty" -o "$OUTPUT_DIR/empty_test"
         if [ $? -eq 0 ]; then
             echo "✅ 空目录容错正常"
         else
@@ -166,7 +168,7 @@ except Exception as e:
         echo "=== 阶段5: 综合测试验证 ==="
         echo "5.1 完整流程测试:"
         start_time=$(date +%s)
-        python -m pcap_decoder -i "$TEST_DIR" -o "$OUTPUT_DIR/integration_test" -v --max-packets 50
+        python3 cli.py -i "$TEST_DIR" -o "$OUTPUT_DIR/integration_test" -v --max-packets 50
         end_time=$(date +%s)
         duration=$((end_time - start_time))
         
@@ -247,10 +249,10 @@ for dir in "${!protocol_dirs[@]}"; do
     
     if [ -d "$test_path" ]; then
         # 执行测试，限制时间和包数
-        timeout 60 python -m pcap_decoder -i "$test_path" -o "$output_path" --max-packets 20 > /dev/null 2>&1
-        exit_code=$?
+        timeout 60 python3 cli.py -i "$test_path" -o "$output_path" --max-packets 20 > /dev/null 2>&1
+        status=$?
         
-        if [ $exit_code -eq 0 ]; then
+        if [ $status -eq 0 ]; then
             json_count=$(find "$output_path" -name "*.json" | wc -l)
             if [ $json_count -gt 0 ]; then
                 echo "✅ 通过 ($json_count 文件)"
@@ -262,8 +264,8 @@ for dir in "${!protocol_dirs[@]}"; do
                 ((failed_tests++))
             fi
         else
-            echo "❌ 失败 (退出码: $exit_code)"
-            echo "❌ $dir ($protocol): 失败 - 退出码 $exit_code" >> "$REPORT_FILE"
+            echo "❌ 失败 (退出码: $status)"
+            echo "❌ $dir ($protocol): 失败 - 退出码 $status" >> "$REPORT_FILE"
             ((failed_tests++))
         fi
     else

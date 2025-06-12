@@ -170,33 +170,33 @@
 
 ### 核心代码文件
 
-1. **pcap_decoder/core/formatter.py** (增强版)
+1. **core/formatter.py** (增强版)
    - 流式JSON输出支持
    - 智能文件命名
    - 详细统计信息
 
-2. **pcap_decoder/core/processor.py** (新增)
+2. **core/processor.py** (新增)
    - 批量处理器
    - 多进程管理
    - 任务队列控制
 
-3. **pcap_decoder/utils/progress.py** (增强版)
+3. **utils/progress.py** (增强版)
    - 实时进度监控
    - 多进程统计合并
    - 性能指标计算
 
-4. **pcap_decoder/cli.py** (增强版)
+4. **cli.py** (增强版)
    - 完整CLI接口
    - 丰富参数选项
    - 错误处理
 
-5. **pcap_decoder/core/extractor.py** (修复)
+5. **core/extractor.py** (修复)
    - 添加extract_fields方法
    - 兼容批量处理器
 
 ### 测试验证文件
 
-6. **pcap_decoder/test_stage3.py** (新增)
+6. **test_stage3.py** (新增)
    - 完整功能验证脚本
    - 4个测试模块
    - 自动化验证流程

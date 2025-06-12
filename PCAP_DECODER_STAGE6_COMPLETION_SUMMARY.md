@@ -180,7 +180,7 @@ python deploy.py --upload        # 上传到正式PyPI
 ### 📦 最终交付清单
 
 #### 核心代码 (生产就绪)
-- [x] `pcap_decoder/` 主程序包 (14个模块文件)
+- [x] `core/` 和 `utils/` 主程序包 (14个模块文件)
 - [x] `tests/` 测试套件 (50+测试方法)
 - [x] `pyproject.toml` 现代化打包配置
 - [x] `deploy.py` 自动化部署脚本

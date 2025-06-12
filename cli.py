@@ -8,9 +8,9 @@ import os
 import sys
 import logging
 from pathlib import Path
-from . import __version__
-from .core import BatchProcessor
-from .utils.progress import create_progress_monitor, ProgressUpdate
+from __init__ import __version__
+from core import BatchProcessor
+from utils.progress import create_progress_monitor, ProgressUpdate
 
 
 def setup_logging(verbose: bool):
@@ -129,7 +129,7 @@ def main(input_dir, output_dir, jobs, max_packets, timeout, dry_run, verbose,
 
 def _run_dry_mode(input_dir: str, verbose: bool):
     """运行试运行模式"""
-    from .core.scanner import DirectoryScanner
+    from core.scanner import DirectoryScanner
     
     click.echo("🔍 扫描文件...")
     scanner = DirectoryScanner()
@@ -170,7 +170,7 @@ def _run_processing_mode(input_dir: str, output_dir: str, jobs: int,
     )
     
     # 更新格式化器的流式输出阈值
-    from .core.formatter import JSONFormatter
+    from core.formatter import JSONFormatter
     # 这里可以通过参数传递给processor，让它配置formatter
     
     # 创建进度监控器

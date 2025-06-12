@@ -24,7 +24,7 @@ PCAP批量解码器是一个基于PyShark的高性能工具，用于批量处理
 pip install -r requirements.txt
 
 # 2. 基本使用
-python -m pcap_decoder -i /path/to/pcap/files -o /path/to/output
+python3 cli.py -i /path/to/pcap/files -o /path/to/output
 
 # 3. 查看结果
 ls /path/to/output/*.json
@@ -105,7 +105,7 @@ tshark --version
 python -c "import pyshark; print('PyShark可用')"
 
 # 验证PCAP解码器
-python -m pcap_decoder --version
+python3 cli.py --version
 ```
 
 ---
@@ -115,7 +115,7 @@ python -m pcap_decoder --version
 ### 命令行参数
 
 ```bash
-python -m pcap_decoder [选项] -i <输入目录> -o <输出目录>
+python3 cli.py [选项] -i <输入目录> -o <输出目录>
 ```
 
 #### 必需参数
@@ -142,35 +142,35 @@ python -m pcap_decoder [选项] -i <输入目录> -o <输出目录>
 
 ```bash
 # 处理单个目录下的所有PCAP文件
-python -m pcap_decoder -i ./samples -o ./output
+python3 cli.py -i ./samples -o ./output
 ```
 
 #### 示例2: 并发处理
 
 ```bash
 # 使用4个进程并发处理
-python -m pcap_decoder -i ./samples -o ./output -j 4
+python3 cli.py -i ./samples -o ./output -j 4
 ```
 
 #### 示例3: 限制包数量
 
 ```bash
 # 每个文件最多处理100个包
-python -m pcap_decoder -i ./samples -o ./output --max-packets 100
+python3 cli.py -i ./samples -o ./output --max-packets 100
 ```
 
 #### 示例4: 详细输出
 
 ```bash
 # 显示详细的处理信息
-python -m pcap_decoder -i ./samples -o ./output -v
+python3 cli.py -i ./samples -o ./output -v
 ```
 
 #### 示例5: 试运行
 
 ```bash
 # 只扫描文件，不实际处理
-python -m pcap_decoder -i ./samples -o ./output --dry-run
+python3 cli.py -i ./samples -o ./output --dry-run
 ```
 
 ### 目录结构示例
@@ -210,14 +210,14 @@ python -c "import psutil; print(f'CPU核心数: {psutil.cpu_count()}')"
 
 # 推荐并发数 = CPU核心数 * 0.8
 # 例如8核CPU，推荐使用6个进程
-python -m pcap_decoder -i ./samples -o ./output -j 6
+python3 cli.py -i ./samples -o ./output -j 6
 ```
 
 #### 内存使用优化
 
 ```bash
 # 大文件处理时限制并发数和包数
-python -m pcap_decoder -i ./large_files -o ./output -j 2 --max-packets 500
+python3 cli.py -i ./large_files -o ./output -j 2 --max-packets 500
 ```
 
 ### 错误处理和调试
@@ -226,7 +226,7 @@ python -m pcap_decoder -i ./large_files -o ./output -j 2 --max-packets 500
 
 ```bash
 # 生成详细的错误报告
-python -m pcap_decoder -i ./samples -o ./output --error-report -v
+python3 cli.py -i ./samples -o ./output --error-report -v
 ```
 
 #### 错误报告结构
@@ -256,13 +256,13 @@ python -m pcap_decoder -i ./samples -o ./output --error-report -v
 
 ```bash
 # 详细模式显示实时性能数据
-python -m pcap_decoder -i ./samples -o ./output -v
+python3 cli.py -i ./samples -o ./output -v
 ```
 
 输出示例：
 ```
 🔍 扫描目录: ./samples
-📁 发现文件: 15 个 (扫描耗时: 0.01s)
+�� 发现文件: 15 个 (扫描耗时: 0.01s)
 📊 开始处理...
 
 处理进度: 100%|████████████| 15/15 [00:45<00:00, 3.33files/s]
@@ -383,19 +383,19 @@ python -m pcap_decoder -i ./samples -o ./output -v
 # 根据CPU核心数调整并发
 cores=$(python -c "import psutil; print(psutil.cpu_count())")
 jobs=$((cores * 4 / 5))  # 使用80%的核心
-python -m pcap_decoder -i ./samples -o ./output -j $jobs
+python3 cli.py -i ./samples -o ./output -j $jobs
 ```
 
 #### 内存优化
 ```bash
 # 大文件处理时的内存友好配置
-python -m pcap_decoder -i ./large_files -o ./output -j 2 --max-packets 1000
+python3 cli.py -i ./large_files -o ./output -j 2 --max-packets 1000
 ```
 
 #### 磁盘优化
 ```bash
 # 使用SSD存储输出文件
-python -m pcap_decoder -i ./samples -o /ssd/output -j 4
+python3 cli.py -i ./samples -o /ssd/output -j 4
 ```
 
 ### 软件优化配置
@@ -404,13 +404,13 @@ python -m pcap_decoder -i ./samples -o /ssd/output -j 4
 
 ```bash
 # 小文件批量处理（高并发）
-python -m pcap_decoder -i ./small_files -o ./output -j 8
+python3 cli.py -i ./small_files -o ./output -j 8
 
 # 大文件处理（低并发，限制包数）
-python -m pcap_decoder -i ./large_files -o ./output -j 2 --max-packets 5000
+python3 cli.py -i ./large_files -o ./output -j 2 --max-packets 5000
 
 # 混合文件处理（平衡配置）
-python -m pcap_decoder -i ./mixed_files -o ./output -j 4 --max-packets 2000
+python3 cli.py -i ./mixed_files -o ./output -j 4 --max-packets 2000
 ```
 
 #### 实时监控脚本
@@ -428,7 +428,7 @@ def monitor_process():
     """监控PCAP解码器进程性能"""
     # 启动解码器进程
     cmd = sys.argv[1:] if len(sys.argv) > 1 else [
-        "python", "-m", "pcap_decoder", 
+        "python3", "cli.py", 
         "-i", "./samples", "-o", "./output", "-v"
     ]
     
@@ -460,7 +460,7 @@ if __name__ == "__main__":
 python monitor.py
 
 # 监控自定义命令
-python monitor.py python -m pcap_decoder -i ./data -o ./results -j 4
+python monitor.py python3 cli.py -i ./data -o ./results -j 4
 ```
 
 ---
@@ -509,13 +509,13 @@ tshark --version
 **解决方案**:
 ```bash
 # 1. 增加并发数
-python -m pcap_decoder -i ./files -o ./output -j 8
+python3 cli.py -i ./files -o ./output -j 8
 
 # 2. 限制包数量
-python -m pcap_decoder -i ./files -o ./output --max-packets 1000
+python3 cli.py -i ./files -o ./output --max-packets 1000
 
 # 3. 使用SSD存储
-python -m pcap_decoder -i ./files -o /ssd/output
+python3 cli.py -i ./files -o /ssd/output
 ```
 
 ### Q4: 内存不足
@@ -525,14 +525,14 @@ python -m pcap_decoder -i ./files -o /ssd/output
 **解决方案**:
 ```bash
 # 降低并发数
-python -m pcap_decoder -i ./files -o ./output -j 1
+python3 cli.py -i ./files -o ./output -j 1
 
 # 限制处理包数
-python -m pcap_decoder -i ./files -o ./output --max-packets 500
+python3 cli.py -i ./files -o ./output --max-packets 500
 
 # 分批处理大文件
 find ./large_files -name "*.pcap" | head -5 | while read file; do
-    python -m pcap_decoder -i "$(dirname "$file")" -o ./output
+    python3 cli.py -i "$(dirname "$file")" -o ./output
 done
 ```
 
@@ -546,7 +546,7 @@ done
 python -c "import json; json.load(open('output.json'))"
 
 # 重新生成，启用详细模式查看错误
-python -m pcap_decoder -i ./files -o ./output -v --error-report
+python3 cli.py -i ./files -o ./output -v --error-report
 ```
 
 ### Q6: 某些协议无法识别
@@ -569,7 +569,7 @@ python -m pcap_decoder -i ./files -o ./output -v --error-report
 
 ```bash
 # 启用最详细的输出
-python -m pcap_decoder -i ./samples -o ./output -v --error-report
+python3 cli.py -i ./samples -o ./output -v --error-report
 ```
 
 #### 手动调试
@@ -624,7 +624,7 @@ if files:
 
 ```bash
 # 使用详细模式查看性能统计
-python -m pcap_decoder -i ./samples -o ./output -v
+python3 cli.py -i ./samples -o ./output -v
 ```
 
 #### 外部性能监控
@@ -645,17 +645,17 @@ htop -p $(pgrep -f pcap_decoder)
 
 1. **查看帮助信息**:
    ```bash
-   python -m pcap_decoder --help
+   python3 cli.py --help
    ```
 
 2. **查看版本信息**:
    ```bash
-   python -m pcap_decoder --version
+   python3 cli.py --version
    ```
 
 3. **生成调试报告**:
    ```bash
-   python -m pcap_decoder -i ./samples -o ./output -v --error-report > debug.log 2>&1
+   python3 cli.py -i ./samples -o ./output -v --error-report > debug.log 2>&1
    ```
 
 ### 报告问题

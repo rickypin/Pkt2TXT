@@ -54,16 +54,16 @@ pcap_decoder/
 **检验方法**:
 ```bash
 # 1. 验证项目结构
-tree pcap_decoder/
+ls -R
 
 # 2. 验证模块导入
-python -c "from pcap_decoder import cli, core, utils"
+python3 -c "from core.scanner import DirectoryScanner; import cli"
 
 # 3. 验证依赖安装
 pip list | grep -E "(pyshark|tqdm|click)"
 
 # 4. 验证测试框架
-pytest --collect-only pcap_decoder/tests/
+pytest --collect-only tests/
 ```
 
 #### 1.2 命令行接口设计 ✅ **已完成**
@@ -82,13 +82,13 @@ pytest --collect-only pcap_decoder/tests/
 **检验方法**:
 ```bash
 # 1. 测试帮助信息
-python -m pcap_decoder --help
+python3 cli.py --help
 
 # 2. 测试参数解析
-python -m pcap_decoder -i ./test -o ./output --dry-run
+python3 cli.py -i ./test -o ./output --dry-run
 
 # 3. 测试错误处理
-python -m pcap_decoder -i /nonexistent
+python3 cli.py -i /nonexistent
 ```
 
 **🎉 阶段1完成总结**:
@@ -192,10 +192,10 @@ VLAN 协议提取测试:
 - ⚡ **开发效率**: 超额完成，实际用时1天（计划3-5天）
 
 **交付文件**:
-- 增强版 `pcap_decoder/core/scanner.py` (目录遍历器)
-- 增强版 `pcap_decoder/core/decoder.py` (PyShark解码器)  
-- 增强版 `pcap_decoder/core/extractor.py` (协议字段提取器)
-- 新增 `pcap_decoder/test_stage2.py` (完整测试验证)
+- 增强版 `core/scanner.py` (目录遍历器)
+- 增强版 `core/decoder.py` (PyShark解码器)  
+- 增强版 `core/extractor.py` (协议字段提取器)
+- 新增 `test_stage2.py` (完整测试验证)
 
 **支持协议**: ETH, IP, IPV6, TCP, UDP, TLS, SSL, HTTP, HTTPS, DNS, VLAN, MPLS, GRE, VXLAN, ARP
 
@@ -212,10 +212,10 @@ VLAN 协议提取测试:
 - ⚡ **开发效率**: 超额完成，实际用时30分钟（计划2天，效率提升96倍）
 
 **交付文件**:
-- 新增 `pcap_decoder/utils/resource_manager.py` (资源管理核心模块)
-- 增强版 `pcap_decoder/core/processor.py` (增强批量处理器)
-- 增强版 `pcap_decoder/utils/__init__.py` (模块导出更新)
-- 新增 `pcap_decoder/validate_stage4.py` (快速验证脚本)
+- 新增 `utils/resource_manager.py` (资源管理核心模块)
+- 增强版 `core/processor.py` (增强批量处理器)
+- 增强版 `utils/__init__.py` (模块导出更新)
+- 新增 `validate_stage4.py` (快速验证脚本)
 - 新增 `PCAP_DECODER_STAGE4_COMPLETION_SUMMARY.md` (完成总结报告)
 
 **核心特性**: 智能资源监控、自动内存管理、大文件处理、完善错误容错、预测性处理
@@ -242,7 +242,7 @@ VLAN 协议提取测试:
 **检验方法**:
 ```bash
 # 测试输出格式
-python -m pcap_decoder -i tests/data/samples/IPTCP-200ips -o /tmp/test_output
+python3 cli.py -i tests/data/samples/IPTCP-200ips -o /tmp/test_output
 ls -la /tmp/test_output/
 cat /tmp/test_output/TC-002-6-20200927-S-A-Replaced.json | jq '.file_info'
 ```
@@ -262,9 +262,10 @@ cat /tmp/test_output/TC-002-6-20200927-S-A-Replaced.json | jq '.file_info'
 
 **检验方法**:
 ```bash
-# 测试并发处理
-time python -m pcap_decoder -i tests/data/samples -o /tmp/batch_test -j 4
-echo "处理完成，检查输出文件数量:"
+# 1. 测试并发处理
+time python3 cli.py -i tests/data/samples -o /tmp/batch_test -j 4
+
+# 2. 验证输出文件数量
 find /tmp/batch_test -name "*.json" | wc -l
 ```
 
@@ -283,11 +284,11 @@ find /tmp/batch_test -name "*.json" | wc -l
 
 **检验方法**:
 ```bash
-# 测试进度显示（详细模式）
-python -m pcap_decoder -i tests/data/samples -o /tmp/progress_test -v
+# 1. 测试详细模式
+python3 cli.py -i tests/data/samples -o /tmp/progress_test -v
 
-# 测试进度显示（简洁模式）
-python -m pcap_decoder -i tests/data/samples -o /tmp/progress_test
+# 2. 测试安静模式
+python3 cli.py -i tests/data/samples -o /tmp/progress_test
 ```
 
 ---
@@ -309,14 +310,12 @@ python -m pcap_decoder -i tests/data/samples -o /tmp/progress_test
 
 **检验方法**:
 ```bash
-# 创建测试用的损坏文件
-echo "invalid pcap data" > /tmp/invalid.pcap
-mkdir -p /tmp/error_test
-cp /tmp/invalid.pcap /tmp/error_test/
+# 1. 测试错误报告生成
+# (先手动创建一个损坏的pcap文件到 /tmp/error_test/broken.pcap)
+python3 cli.py -i /tmp/error_test -o /tmp/error_output --error-report
 
-# 测试错误处理
-python -m pcap_decoder -i /tmp/error_test -o /tmp/error_output --error-report
-cat /tmp/error_output/error_report.json
+# 2. 检查错误报告内容
+cat /tmp/error_output/error_report.json | jq
 ```
 
 #### 4.2 资源管理优化 ✅ **已完成**
@@ -340,7 +339,7 @@ import psutil
 import subprocess
 import time
 
-process = subprocess.Popen(['python', '-m', 'pcap_decoder', 
+process = subprocess.Popen(['python3', 'cli.py', 
                            '-i', 'tests/data/samples', 
                            '-o', '/tmp/memory_test'])
 pid = process.pid
@@ -420,12 +419,12 @@ for i in range(10):
 **检验方法**:
 ```bash
 # 完整集成测试
-python -m pcap_decoder -i tests/data/samples -o /tmp/integration_test -v
+python3 cli.py -i tests/data/samples -o /tmp/integration_test -v
 
 # 验证每个子目录的处理结果
 for dir in tests/data/samples/*/; do
     echo "测试目录: $(basename "$dir")"
-    python -m pcap_decoder -i "$dir" -o "/tmp/test_$(basename "$dir")" -v
+    python3 cli.py -i "$dir" -o "/tmp/test_$(basename "$dir")" -v
     echo "---"
 done
 
@@ -459,36 +458,19 @@ find /tmp -name "error_*.log" | wc -l
 
 **检验方法**:
 ```bash
-# 性能基准测试
-python -c "
+# 运行性能测试并记录时间
+/usr/bin/time -p python3 cli.py -i tests/data/samples -o /tmp/perf_test
+
+# 或者使用Python脚本进行更精确的测量
 import time
 import subprocess
-import psutil
 
-start_time = time.time()
-process = subprocess.Popen(['python', '-m', 'pcap_decoder', 
-                           '-i', 'tests/data/samples/IPTCP-200ips', 
-                           '-o', '/tmp/perf_test'],
-                          stdout=subprocess.PIPE, 
-                          stderr=subprocess.PIPE)
-
-# 监控资源使用
-peak_memory = 0
-while process.poll() is None:
-    try:
-        mem = psutil.Process(process.pid).memory_info().rss / 1024 / 1024
-        peak_memory = max(peak_memory, mem)
-        time.sleep(0.1)
-    except psutil.NoSuchProcess:
-        break
-
-end_time = time.time()
-stdout, stderr = process.communicate()
-
-print(f'处理时间: {end_time - start_time:.2f}秒')
-print(f'峰值内存: {peak_memory:.1f}MB')
-print(f'退出代码: {process.returncode}')
-"
+start = time.time()
+subprocess.run(['python3', 'cli.py',
+                '-i', 'tests/data/samples',
+                '-o', '/tmp/perf_test'])
+end = time.time()
+print(f"处理时间: {end - start:.2f} 秒")
 ```
 
 **🎉 阶段5完成总结**:
@@ -523,7 +505,7 @@ print(f'退出代码: {process.returncode}')
 
 ---
 
-### 阶段 6: 文档与部署 (第15天)
+### 阶段 6: 文档与部署 (第14-15天)
 
 #### 6.1 文档编写
 **任务列表**:
@@ -570,12 +552,12 @@ print(f'退出代码: {process.returncode}')
 ### 持续集成
 ```bash
 # 代码质量检查
-black pcap_decoder/
-flake8 pcap_decoder/
-mypy pcap_decoder/
+black .
+flake8 .
+mypy .
 
 # 测试执行
-pytest pcap_decoder/tests/ --cov=pcap_decoder
+pytest tests/ --cov=.
 
 # 文档生成
 sphinx-build -b html docs/ docs/_build/html
@@ -635,16 +617,16 @@ sphinx-build -b html docs/ docs/_build/html
 ## 项目交付清单
 
 ### 核心代码
-- [x] ✅ `pcap_decoder/` 主程序模块 (阶段1-5完成)
-- [x] ✅ `tests/` 测试套件 (阶段5完成，7个测试文件)
-- [x] ✅ `requirements.txt` 依赖声明 (阶段1完成)
+- [x] ✅ `core/` 主程序模块 (阶段1-5完成)
+- [x] ✅ `utils/` 工具模块 (阶段1-5完成)
+- [x] ✅ `tests/` 测试模块 (阶段1-5完成)
 - [ ] `setup.py` 安装配置
 
 ### 文档
-- [ ] `README.md` 项目介绍
-- [ ] `USER_GUIDE.md` 用户手册  
-- [ ] `DEVELOPER_GUIDE.md` 开发文档
-- [ ] `API_REFERENCE.md` API文档
+- [x] ✅ `README.md` (已完成)
+- [x] ✅ `USER_GUIDE.md` (已完成)
+- [x] ✅ `DEVELOPER_GUIDE.md` (已完成)
+- [x] ✅ `API_REFERENCE.md` API文档
 
 ### 测试报告
 - [x] ✅ 单元测试报告 (阶段5完成，Scanner/Extractor通过)

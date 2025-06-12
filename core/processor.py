@@ -12,12 +12,12 @@ from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass
 import signal
 
-from .scanner import DirectoryScanner
-from .decoder import PacketDecoder, DecodeResult
-from .extractor import ProtocolExtractor
-from .formatter import JSONFormatter
-from ..utils.resource_manager import ResourceManager, MemoryThresholds, DiskThresholds
-from ..utils.errors import ErrorCollector, FileError, DecodeError
+from core.scanner import DirectoryScanner
+from core.decoder import PacketDecoder, DecodeResult
+from core.extractor import ProtocolExtractor
+from core.formatter import JSONFormatter
+from utils.resource_manager import ResourceManager, MemoryThresholds, DiskThresholds
+from utils.errors import ErrorCollector, FileError, DecodeError
 
 logger = logging.getLogger(__name__)
 

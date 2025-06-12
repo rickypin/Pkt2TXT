@@ -59,7 +59,7 @@ docs = [
 ]
 
 [project.scripts]
-pcap-decoder = "pcap_decoder.cli:main"
+pcap-decoder = "cli:main"
 
 [project.urls]
 Homepage = "https://github.com/pcap-decoder/pcap-batch-decoder"
@@ -69,27 +69,30 @@ Issues = "https://github.com/pcap-decoder/pcap-batch-decoder/issues"
 Changelog = "https://github.com/pcap-decoder/pcap-batch-decoder/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
-packages = ["pcap_decoder"]
+packages = ["."]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/pcap_decoder",
+    "/*.py",
+    "/core",
+    "/utils",
     "/tests",
     "/docs",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
+    "requirements.txt",
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=pcap_decoder --cov-report=term-missing --cov-report=html --html=report.html --cov-fail-under=80"
+addopts = "--cov=. --cov-report=term-missing --cov-report=html --cov-fail-under=80"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.coverage.run]
-source = ["pcap_decoder"]
+source = ["."]
 omit = [
     "*/tests/*",
     "*/test_*.py",

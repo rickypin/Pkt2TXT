@@ -20,9 +20,7 @@
 PCAP批量解码器采用模块化设计，主要包含以下组件：
 
 ```
-pcap_decoder/
-├── __init__.py           # 包初始化
-├── __main__.py           # 主入口点
+Pkt2TXT/
 ├── cli.py                # 命令行接口
 ├── core/                 # 核心功能模块
 │   ├── __init__.py
@@ -136,9 +134,9 @@ pre-commit install
 pytest
 
 # 运行代码质量检查
-black pcap_decoder/
-flake8 pcap_decoder/
-mypy pcap_decoder/
+black .
+flake8 .
+mypy .
 ```
 
 ---
@@ -268,69 +266,45 @@ class FileInfo:
 #### DirectoryScanner
 
 ```python
-from pcap_decoder.core.scanner import DirectoryScanner
+from core.scanner import DirectoryScanner
 
 scanner = DirectoryScanner()
-
-# 扫描目录
-files = scanner.scan_directory("/path/to/pcaps", max_depth=2)
-
-# 获取统计信息
-stats = scanner.get_scan_statistics()
-print(f"找到 {stats['found_files']} 个文件")
+files = scanner.scan_directory("./samples")
+print(f"发现 {len(files)} 个文件")
 ```
 
 #### PacketDecoder
 
 ```python
-from pcap_decoder.core.decoder import PacketDecoder
+from core.decoder import PacketDecoder
 
 decoder = PacketDecoder()
-
-# 解码单个文件
-result = decoder.decode_file("/path/to/file.pcap")
-
-# 访问解码结果
-print(f"解码了 {len(result.packets)} 个包")
-for packet in result.packets[:5]:  # 查看前5个包
-    print(f"包 {packet.packet_id}: {packet.summary}")
+result = decoder.decode_file("./samples/singlevlan/vlan_test.pcap")
+print(f"解码 {len(result.packets)} 个包")
 ```
 
 #### FieldExtractor
 
 ```python
-from pcap_decoder.core.extractor import FieldExtractor
+from core.extractor import FieldExtractor
+# (需要先用decoder获取packet对象)
+# packet = ...
 
 extractor = FieldExtractor()
-
-# 提取字段（通常由PacketDecoder内部调用）
-fields = extractor.extract_fields(pyshark_packet)
-
-# 生成摘要
-summary = extractor.generate_summary(pyshark_packet)
+fields = extractor.extract_fields(packet)
 ```
 
 #### BatchProcessor
 
 ```python
-from pcap_decoder.core.processor import BatchProcessor
+from core.processor import BatchProcessor
 
 processor = BatchProcessor(
-    input_dir="/path/to/pcaps",
-    output_dir="/path/to/output",
-    max_workers=4,
-    max_packets_per_file=1000
+    input_dir="./samples",
+    output_dir="./results",
+    jobs=4
 )
-
-# 开始批量处理
-results = processor.process_all()
-
-# 查看处理结果
-for result in results:
-    if result.success:
-        print(f"✅ {result.file_path}")
-    else:
-        print(f"❌ {result.file_path}: {result.error}")
+processor.run()
 ```
 
 ### 工具API
@@ -338,52 +312,37 @@ for result in results:
 #### 进度跟踪
 
 ```python
-from pcap_decoder.utils.progress import ProgressTracker
+from utils.progress import ProgressTracker
 
-# 创建进度跟踪器
-progress = ProgressTracker(total_files=100)
-
-# 更新进度
-for i in range(100):
-    progress.update(1, current_file=f"file_{i}.pcap")
-    time.sleep(0.1)
-
-progress.close()
+tracker = ProgressTracker(total_files=100)
+tracker.start_file("test.pcap")
+# ... processing ...
+tracker.finish_file(packets=50, decode_time=1.5)
 ```
 
 #### 错误收集
 
 ```python
-from pcap_decoder.utils.errors import ErrorCollector
+from utils.errors import ErrorCollector
 
-collector = ErrorCollector()
-
-# 记录错误
+collector = ErrorCollector("./reports")
 try:
-    # 一些可能失败的操作
-    decode_file(problematic_file)
+    # ... some operation that might fail ...
+    raise ValueError("Something went wrong")
 except Exception as e:
-    collector.add_error("decode_error", str(e), problematic_file)
+    collector.add_error("test.pcap", e)
 
-# 生成错误报告
-report = collector.generate_report()
+collector.generate_report()
 ```
 
 #### 资源管理
 
 ```python
-from pcap_decoder.utils.resource_manager import ResourceManager
+from utils.resource_manager import ResourceManager
 
-# 创建资源管理器
-rm = ResourceManager(max_memory_mb=1000)
-
-# 检查资源
-if rm.check_memory():
-    # 执行内存密集型操作
-    process_large_file()
-
-# 清理资源
-rm.cleanup()
+manager = ResourceManager()
+if manager.is_memory_critical():
+    print("内存不足，请注意！")
 ```
 
 ---
@@ -427,7 +386,7 @@ pytest tests/unit/test_scanner.py::test_scan_directory
 pytest -v
 
 # 显示覆盖率
-pytest --cov=pcap_decoder --cov-report=html
+pytest --cov=. --cov-report=html
 ```
 
 #### 测试分类
@@ -567,13 +526,22 @@ def decoder():
 # pcap_decoder/core/extractor.py
 
 class FieldExtractor:
+    KNOWN_PROTOCOLS = {
+        # ... 其他协议
+        "FOO": "_extract_layer_foo"
+    }
+
+    def _extract_layer_foo(self, layer) -> Dict[str, Any]:
+        # ... 提取FOO协议的字段
+        return {"field1": "value1"}
+
     def extract_layer_fields(self, layer) -> Dict[str, Any]:
         """扩展此方法以支持新协议"""
         protocol_name = layer.layer_name.upper()
         
         # 添加新协议处理
-        if protocol_name == "NEW_PROTOCOL":
-            return self._extract_new_protocol_fields(layer)
+        if protocol_name in self.KNOWN_PROTOCOLS:
+            return self.KNOWN_PROTOCOLS[protocol_name](layer)
         
         # 现有协议处理...
         
@@ -715,132 +683,39 @@ class PrivacyFilterPlugin(ProcessingPlugin):
 
 ### 贡献流程
 
-1. **Fork项目**
-   ```bash
-   # Fork GitHub仓库
-   # 克隆你的fork
-   git clone https://github.com/your-username/pcap-batch-decoder.git
-   ```
+1. **Fork** 项目仓库。
+2. 创建一个新的分支 (`git checkout -b feature/my-new-feature`)。
+3. 提交你的代码 (`git commit -am 'Add some feature'`)。
+4. **Push** 到你的分支 (`git push origin feature/my-new-feature`)。
+5. 创建一个新的 **Pull Request**。
 
-2. **创建特性分支**
-   ```bash
-   git checkout -b feature/new-protocol-support
-   ```
+### 代码风格
 
-3. **开发和测试**
-   ```bash
-   # 编写代码
-   # 运行测试
-   pytest
-   # 代码质量检查
-   black . && flake8 . && mypy .
-   ```
-
-4. **提交变更**
-   ```bash
-   git add .
-   git commit -m "feat: add support for new protocol"
-   ```
-
-5. **创建Pull Request**
-   - 推送到你的fork
-   - 在GitHub上创建PR
-   - 描述变更内容
-   - 等待代码审查
-
-### 代码规范
-
-#### Python编码规范
-
-```python
-# 遵循PEP 8
-# 使用类型提示
-def process_file(filepath: str, max_packets: Optional[int] = None) -> DecodedFile:
-    """处理PCAP文件
-    
-    Args:
-        filepath: PCAP文件路径
-        max_packets: 最大处理包数，None表示无限制
-        
-    Returns:
-        解码后的文件对象
-        
-    Raises:
-        FileNotFoundError: 文件不存在
-        DecodeError: 解码失败
-    """
-    pass
-
-# 使用dataclass定义数据结构
-@dataclass
-class PacketInfo:
-    packet_id: int
-    timestamp: datetime
-    size: int
-    
-# 遵循命名规范
-class ProtocolParser:  # 类使用PascalCase
-    def parse_packet(self, packet_data: bytes) -> Dict[str, Any]:  # 方法使用snake_case
-        protocol_type = self._detect_protocol(packet_data)  # 私有方法用下划线
-        return {}
-```
-
-#### 提交信息规范
+请遵循 [PEP 8](https://www.python.org/dev/peps/pep-0008/) 编码规范，并使用`black`进行代码格式化。
 
 ```bash
-# 格式: <type>(<scope>): <description>
+# 格式化代码
+black .
 
-# 类型:
-feat: 新功能
-fix: 修复bug
-docs: 文档更新
-style: 代码格式修改
-refactor: 重构
-test: 测试相关
-chore: 构建过程或辅助工具的变动
-
-# 示例:
-feat(decoder): add support for MPLS protocol
-fix(scanner): handle unicode filename correctly
-docs(api): update decoder API documentation
-test(extractor): add tests for IPv6 extraction
+# 检查代码风格
+flake8 .
 ```
 
-### 代码审查清单
+### 测试要求
 
-#### Pull Request检查项
-
-- [ ] 代码通过所有测试
-- [ ] 新功能有相应的测试
-- [ ] 代码覆盖率不低于80%
-- [ ] 遵循代码规范（black, flake8, mypy）
-- [ ] 文档已更新
-- [ ] 变更日志已更新
-- [ ] API文档已更新（如有必要）
-- [ ] 性能影响已评估
-- [ ] 向后兼容性已考虑
-
-#### 代码质量标准
+所有新功能或Bug修复都必须附带相应的测试。
 
 ```bash
-# 运行完整的质量检查
-# 代码格式化
-black pcap_decoder/ tests/
+# 运行测试并检查覆盖率
+pytest --cov=. --cov-fail-under=90
+```
 
-# 代码风格检查
-flake8 pcap_decoder/ tests/
+### 安全策略
 
-# 类型检查
-mypy pcap_decoder/
+我们使用`bandit`进行安全漏洞扫描。
 
-# 测试覆盖率
-pytest --cov=pcap_decoder --cov-report=html --cov-fail-under=80
-
-# 安全检查
-bandit -r pcap_decoder/
-
-# 依赖检查
-safety check
+```bash
+bandit -r .
 ```
 
 ---
@@ -849,187 +724,65 @@ safety check
 
 ### 版本管理
 
-项目使用[语义化版本](https://semver.org/)：
+项目使用 [Semantic Versioning 2.0.0](https://semver.org/)。
 
-- **主版本号**: 不兼容的API修改
-- **次版本号**: 向下兼容的功能性新增
-- **修订版本号**: 向下兼容的问题修正
+- **MAJOR** version when you make incompatible API changes,
+- **MINOR** version when you add functionality in a backwards compatible manner, and
+- **PATCH** version when you make backwards compatible bug fixes.
 
 ### 发布步骤
 
-#### 1. 准备发布
+1. **更新版本号**:
+   - 在 `__init__.py` (或 `_version.py`) 中更新版本号。
+   - 更新 `CHANGELOG.md`。
 
-```bash
-# 1. 确保在main分支
-git checkout main
-git pull origin main
+2. **代码检查与测试**:
+   ```bash
+   black .
+   flake8 .
+   mypy .
+   pytest --cov=. --cov-report=xml
+   ```
 
-# 2. 更新版本号
-# 编辑pyproject.toml中的version字段
-# 更新__init__.py中的__version__
+3. **创建Git标签**:
+   ```bash
+   git tag -a v1.2.3 -m "Version 1.2.3"
+   git push origin v1.2.3
+   ```
 
-# 3. 更新CHANGELOG.md
-# 添加新版本的变更记录
+4. **构建发布包**:
+   ```bash
+   python setup.py sdist bdist_wheel
+   ```
 
-# 4. 运行完整测试
-pytest
-black . && flake8 . && mypy .
-```
+5. **上传到PyPI**:
+   ```bash
+   twine upload dist/*
+   ```
 
-#### 2. 创建发布标签
+## 附录
 
-```bash
-# 创建标签
-git tag v1.0.0
+### 关键依赖项
 
-# 推送标签
-git push origin v1.0.0
-```
+- **PyShark**: `pyshark` - 核心解码库，tshark的Python封装。
+- **Click**: `click` - 命令行界面库。
+- **tqdm**: `tqdm` - 进度条库。
 
-#### 3. 构建分发包
+### 历史版本
 
-```bash
-# 安装构建工具
-pip install build twine
+- **1.0.0 (2024-07-25)**: 首次发布，完成核心功能。
+- **0.1.0 (2024-07-15)**: 内部测试版。
 
-# 清理旧的构建
-rm -rf dist/ build/
+### 常见问题
 
-# 构建分发包
-python -m build
+- **Q: 为什么解码速度慢?**
+  - A: PyShark依赖于tshark进程，通信开销较大。请使用并发处理 `-j` 选项加速。
 
-# 检查分发包
-twine check dist/*
-```
+- **Q: 如何处理超大文件?**
+  - A: 使用 `--max-packets` 限制处理的包数，避免内存耗尽。
 
-#### 4. 发布到PyPI
-
-```bash
-# 发布到测试PyPI（可选）
-twine upload --repository testpypi dist/*
-
-# 测试安装
-pip install --index-url https://test.pypi.org/simple/ pcap-batch-decoder
-
-# 发布到正式PyPI
-twine upload dist/*
-```
-
-#### 5. 创建GitHub Release
-
-1. 访问GitHub仓库的Releases页面
-2. 点击"Create a new release"
-3. 选择刚创建的标签
-4. 填写Release标题和描述
-5. 上传构建的分发包
-6. 发布Release
-
-### 自动化CI/CD
-
-#### GitHub Actions配置
-
-```yaml
-# .github/workflows/ci.yml
-name: CI
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.7, 3.8, 3.9, 3.10, 3.11]
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e ".[dev]"
-    
-    - name: Run tests
-      run: |
-        pytest --cov=pcap_decoder --cov-report=xml
-    
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
-
-  release:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.9
-    
-    - name: Build package
-      run: |
-        pip install build
-        python -m build
-    
-    - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
-```
-
----
-
-## 架构决策记录
-
-### ADR-001: 选择PyShark作为解码引擎
-
-**状态**: 已接受  
-**日期**: 2024-06-06
-
-**背景**: 需要选择PCAP解码库
-
-**决策**: 选择PyShark而不是Scapy或其他库
-
-**理由**:
-- 基于tshark，协议支持最全面
-- 解码准确性高
-- 活跃的社区支持
-
-**后果**:
-- 依赖Wireshark/tshark安装
-- 性能相对较慢
-- 需要处理tshark的异常情况
-
-### ADR-002: 采用多进程而非多线程
-
-**状态**: 已接受  
-**日期**: 2024-06-08
-
-**背景**: 需要提升批量处理性能
-
-**决策**: 使用multiprocessing而不是threading
-
-**理由**:
-- 避免GIL限制
-- 更好的CPU利用率
-- 进程隔离，错误不会相互影响
-
-**后果**:
-- 内存使用增加
-- 进程间通信复杂
-- 序列化开销
+- **Q: 为什么需要root权限?**
+  - A: 在某些系统上，tshark可能需要root权限才能访问网络接口，但本工具处理的是文件，通常不需要root。
 
 ---
 

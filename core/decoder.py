@@ -11,7 +11,7 @@ import pyshark
 
 # 导入协议提取器（如果存在）
 try:
-    from .extractor import ProtocolExtractor
+    from core.extractor import ProtocolExtractor
     HAS_EXTRACTOR = True
 except ImportError:
     HAS_EXTRACTOR = False
