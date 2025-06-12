@@ -456,6 +456,23 @@ class EnhancedBatchProcessor:
         
         return self._build_summary()
     
+    def _handle_result(self, result: ProcessingResult):
+        """处理单个文件的执行结果"""
+        if result.success:
+            self.stats['successful_files'] += 1
+            if result.decode_result:
+                self.stats['total_packets'] += result.decode_result.packet_count
+            logger.debug(f"成功处理: {result.task.file_path}")
+        else:
+            self.stats['failed_files'] += 1
+            error = FileError(
+                file_path=result.task.file_path,
+                operation="文件处理",
+                original_error=Exception(result.error)
+            )
+            self.error_collector.add_error(error)
+            logger.warning(f"处理失败: {result.task.file_path} - {result.error}")
+
     def _build_summary(self) -> Dict[str, Any]:
         """构建处理结果摘要（增强版）"""
         total_files = self.stats['total_files']

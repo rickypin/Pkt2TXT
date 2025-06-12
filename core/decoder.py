@@ -11,6 +11,7 @@ import pyshark
 from scapy.all import rdpcap, Scapy_Exception, PcapReader
 from scapy.packet import Packet as ScapyPacket
 from pathlib import Path
+import time
 
 # 导入协议提取器（如果存在）
 try:
@@ -88,7 +89,6 @@ class PacketDecoder:
         Returns:
             DecodeResult: 解码结果
         """
-        import time
         from pathlib import Path
         
         start_time = time.time()

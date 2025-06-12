@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Iterator
 from datetime import datetime
 import hashlib
+import time
 from core.decoder import DecodeResult
 
 logger = logging.getLogger(__name__)
@@ -70,12 +71,7 @@ class JSONFormatter:
         input_file = Path(result.file_path)
         base_name = input_file.stem
         
-        # 为避免文件名冲突，添加文件大小、时间戳和包数量的哈希
-        import time
-        unique_str = f"{input_file.name}_{result.file_size}_{result.packet_count}_{time.time()}"
-        unique_id = hashlib.md5(unique_str.encode()).hexdigest()[:8]
-        
-        return f"{base_name}_{unique_id}.json"
+        return f"{base_name}.json"
     
     def _save_standard(self, result: DecodeResult, output_path: Path):
         """
