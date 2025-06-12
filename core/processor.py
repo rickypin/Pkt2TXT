@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass
 import signal
+import queue
 
 from core.scanner import DirectoryScanner
 from core.decoder import PacketDecoder, DecodeResult
@@ -18,8 +19,20 @@ from core.extractor import ProtocolExtractor
 from core.formatter import JSONFormatter
 from utils.resource_manager import ResourceManager, MemoryThresholds, DiskThresholds
 from utils.errors import ErrorCollector, FileError, DecodeError
+from utils.helpers import get_file_size_mb
 
 logger = logging.getLogger(__name__)
+
+# 定义一个更具体的进度更新类型
+@dataclass
+class ProgressUpdate:
+    """进度更新信息"""
+    task_id: int
+    file_path: str
+    processed: int
+    total: int
+    done: bool = False
+    error: Optional[str] = None
 
 
 @dataclass
@@ -48,12 +61,17 @@ class TaskTimeoutError(Exception):
     pass
 
 
-def process_single_file(task: ProcessingTask, timeout: int = 300) -> ProcessingResult:
+def process_single_file(
+    task: ProcessingTask, 
+    progress_queue: mp.Queue, 
+    timeout: int = 300
+) -> ProcessingResult:
     """
     处理单个文件的工作函数（用于多进程执行）
     
     Args:
         task: 处理任务
+        progress_queue: 进度更新队列
         timeout: 超时时间（秒）
         
     Returns:
@@ -72,6 +90,21 @@ def process_single_file(task: ProcessingTask, timeout: int = 300) -> ProcessingR
     resource_manager = None
     resource_usage = {}
     
+    def progress_callback(processed: int, total: int):
+        """解码器调用的回调函数"""
+        try:
+            progress_queue.put_nowait(
+                ProgressUpdate(
+                    task_id=task.task_id,
+                    file_path=task.file_path,
+                    processed=processed,
+                    total=total
+                )
+            )
+        except queue.Full:
+            # 如果队列已满，可以忽略此次更新
+            pass
+
     try:
         # 创建资源管理器（不启用监控以减少开销）
         resource_manager = ResourceManager(enable_monitoring=False)
@@ -96,9 +129,7 @@ def process_single_file(task: ProcessingTask, timeout: int = 300) -> ProcessingR
         resource_manager.memory_manager.register_cleanup_callback(lambda: decoder.cleanup() if hasattr(decoder, 'cleanup') else None)
         
         # 解码文件
-        initial_usage = resource_manager.monitor.get_current_usage()
-        decode_result = decoder.decode_file(task.file_path)
-        post_decode_usage = resource_manager.monitor.get_current_usage()
+        decode_result = decoder.decode_file(task.file_path, progress_callback=progress_callback)
         
         # 提取协议字段
         for packet in decode_result.packets:
@@ -109,20 +140,21 @@ def process_single_file(task: ProcessingTask, timeout: int = 300) -> ProcessingR
         
         # 格式化并保存
         output_file = formatter.format_and_save(decode_result)
-        final_usage = resource_manager.monitor.get_current_usage()
         
         processing_time = time.time() - start_time
         
-        # 记录资源使用情况
-        resource_usage.update({
-            'initial_memory_mb': initial_usage.memory_mb,
-            'post_decode_memory_mb': post_decode_usage.memory_mb,
-            'final_memory_mb': final_usage.memory_mb,
-            'memory_increase_mb': final_usage.memory_mb - initial_usage.memory_mb,
-            'peak_memory_mb': max(initial_usage.memory_mb, post_decode_usage.memory_mb, final_usage.memory_mb)
-        })
+        logger.info(f"完成处理文件: {Path(task.file_path).name} ({processing_time:.3f}s)")
         
-        logger.info(f"完成处理文件: {Path(task.file_path).name} ({processing_time:.3f}s, 内存增长: {resource_usage['memory_increase_mb']:.1f}MB)")
+        # 发送完成信号
+        progress_queue.put_nowait(
+            ProgressUpdate(
+                task_id=task.task_id, 
+                file_path=task.file_path,
+                processed=decode_result.packet_count,
+                total=decode_result.packet_count if decode_result.packet_count > 0 else 1, # 避免除以0
+                done=True
+            )
+        )
         
         return ProcessingResult(
             task=task,
@@ -135,6 +167,17 @@ def process_single_file(task: ProcessingTask, timeout: int = 300) -> ProcessingR
         
     except TaskTimeoutError as e:
         logger.error(f"文件处理超时: {task.file_path} - {e}")
+        # 发送错误信号
+        progress_queue.put_nowait(
+            ProgressUpdate(
+                task_id=task.task_id,
+                file_path=task.file_path,
+                processed=0,
+                total=1,
+                done=True,
+                error=str(e)
+            )
+        )
         return ProcessingResult(
             task=task,
             success=False,
@@ -145,6 +188,17 @@ def process_single_file(task: ProcessingTask, timeout: int = 300) -> ProcessingR
         
     except Exception as e:
         logger.error(f"文件处理失败: {task.file_path} - {e}")
+        # 发送错误信号
+        progress_queue.put_nowait(
+            ProgressUpdate(
+                task_id=task.task_id,
+                file_path=task.file_path,
+                processed=0,
+                total=1,
+                done=True,
+                error=str(e)
+            )
+        )
         return ProcessingResult(
             task=task,
             success=False,
@@ -166,7 +220,7 @@ class EnhancedBatchProcessor:
     """增强版批量处理器，支持资源管理和智能调度"""
     
     def __init__(self, 
-                 output_dir: str,
+                 output_dir: Optional[str],
                  max_workers: int = None,
                  task_timeout: int = 300,
                  max_packets: Optional[int] = None,
@@ -183,12 +237,17 @@ class EnhancedBatchProcessor:
             memory_limit_mb: 内存限制（MB）
             enable_resource_monitoring: 是否启用资源监控
         """
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir = Path(output_dir) if output_dir else None
+        if self.output_dir:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
         
         self.max_workers = max_workers or mp.cpu_count()
         self.task_timeout = task_timeout
         self.max_packets = max_packets
+        
+        # 跨进程通信队列
+        manager = mp.Manager()
+        self.progress_queue = manager.Queue()
         
         # 资源管理配置
         memory_thresholds = MemoryThresholds(
@@ -228,20 +287,26 @@ class EnhancedBatchProcessor:
         large_files = []
         processable_files = []
         unprocessable_files = []
+        recommendations = []
         
-        for task in tasks:
-            file_size_mb = self.resource_manager.file_handler.get_file_size_mb(task.file_path)
-            total_size_mb += file_size_mb
-            
-            # 检查文件可处理性
-            processability = self.resource_manager.check_file_processable(task.file_path)
-            
-            if processability['can_process']:
-                processable_files.append(task)
-                if processability['is_large_file']:
-                    large_files.append(task)
-            else:
-                unprocessable_files.append((task, processability['recommendations']))
+        # 模拟资源检查
+        if self.resource_manager:
+            for task in tasks:
+                if self.resource_manager.monitor:
+                    file_size_mb = get_file_size_mb(task.file_path)
+                    total_size_mb += file_size_mb
+                
+                    status = self.resource_manager.check_file_processable(task.file_path)
+                    if not status['can_process']:
+                        unprocessable_files.append((task, status['recommendations']))
+                    if status.get('is_large_file', False):
+                        large_files.append(task)
+                else:
+                    # 如果没有监控器，就跳过检查
+                    pass
+        
+        # 估算总处理时间 (简化版)
+        estimated_time_per_file = 5  # 假设每个文件平均5秒
         
         analysis = {
             'total_files': len(tasks),
@@ -269,28 +334,25 @@ class EnhancedBatchProcessor:
         return analysis
     
     def scan_and_prepare_tasks(self, input_dir: str) -> List[ProcessingTask]:
-        """
-        扫描输入目录并准备处理任务
-        
-        Args:
-            input_dir: 输入目录路径
-            
-        Returns:
-            List[ProcessingTask]: 任务列表
-        """
+        """扫描目录并准备处理任务"""
+        logger.info(f"扫描输入目录: {input_dir}")
         scanner = DirectoryScanner()
         files = scanner.scan_directory(input_dir, max_depth=2)
         
+        if not files:
+            logger.warning(f"在 {input_dir} 中未找到PCAP/PCAPNG文件")
+            return []
+            
         tasks = []
         for i, file_path in enumerate(files):
-            task = ProcessingTask(
-                file_path=file_path,
-                output_dir=str(self.output_dir),
+            output_directory = self.output_dir if self.output_dir else Path(file_path).parent
+            tasks.append(ProcessingTask(
+                file_path=str(file_path),
+                output_dir=str(output_directory),
                 max_packets=self.max_packets,
                 task_id=i
-            )
-            tasks.append(task)
-        
+            ))
+            
         logger.info(f"准备了 {len(tasks)} 个处理任务")
         return tasks
     
@@ -329,88 +391,68 @@ class EnhancedBatchProcessor:
             logger.error("没有可处理的文件")
             return self._build_summary()
         
-        # 存储所有成功的解码结果
-        successful_results = []
+        # 使用 rich 创建进度条
+        from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeRemainingColumn
         
-        # 动态调整工作进程数
-        effective_workers = min(self.max_workers, analysis['recommended_workers'])
-        logger.info(f"使用 {effective_workers} 个工作进程处理 {len(processable_tasks)} 个文件")
-        
-        # 使用进程池执行任务
-        with ProcessPoolExecutor(max_workers=effective_workers) as executor:
-            # 提交所有任务
-            future_to_task = {
-                executor.submit(process_single_file, task, self.task_timeout): task 
-                for task in processable_tasks
-            }
-            
-            # 处理完成的任务
-            completed = 0
-            for future in as_completed(future_to_task):
-                task = future_to_task[future]
-                completed += 1
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}", justify="right"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeRemainingColumn(),
+            TextColumn("({task.completed}/{task.total} packets)"),
+        ) as progress:
+            overall_task = progress.add_task("[bold blue]总进度", total=len(processable_tasks))
+            task_progress_bars = {}
+
+            with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+                # 提交任务
+                future_to_task = {
+                    executor.submit(process_single_file, task, self.progress_queue, self.task_timeout): task
+                    for task in processable_tasks
+                }
                 
-                try:
-                    result = future.result()
-                    
-                    # 更新资源使用统计
-                    if result.resource_usage:
-                        self.stats['peak_memory_mb'] = max(
-                            self.stats['peak_memory_mb'],
-                            result.resource_usage.get('peak_memory_mb', 0)
-                        )
-                    
-                    if result.success:
-                        self.stats['successful_files'] += 1
-                        self.stats['total_packets'] += result.decode_result.packet_count
-                        successful_results.append(result.decode_result)
-                        logger.info(f"✅ [{completed}/{len(processable_tasks)}] {Path(task.file_path).name}")
-                    else:
-                        self.stats['failed_files'] += 1
-                        
-                        # 使用错误收集器记录错误
-                        if "超时" in result.error:
-                            error = FileError(task.file_path, "处理超时", Exception(result.error))
+                # 实时处理进度更新和结果
+                completed_count = 0
+                while completed_count < len(processable_tasks):
+                    try:
+                        update: ProgressUpdate = self.progress_queue.get(timeout=1)
+
+                        file_name = Path(update.file_path).name
+                        if update.task_id not in task_progress_bars:
+                            task_progress_bars[update.task_id] = progress.add_task(f"{file_name}", total=update.total if update.total > 0 else 100)
+
+                        if update.done:
+                            completed_count += 1
+                            progress.update(overall_task, advance=1)
+                            if update.error:
+                                progress.update(task_progress_bars[update.task_id], completed=update.total, description=f"[bold red]❌ {file_name} (错误)")
+                            else:
+                                progress.update(task_progress_bars[update.task_id], completed=update.total, description=f"[bold green]✔️ {file_name}")
                         else:
-                            error = DecodeError(task.file_path, original_error=Exception(result.error))
-                        
-                        self.error_collector.add_error(error, task.file_path)
-                        logger.error(f"❌ [{completed}/{len(processable_tasks)}] {Path(task.file_path).name}: {result.error}")
-                    
-                    self.stats['total_processing_time'] += result.processing_time
-                    
-                except Exception as e:
-                    self.stats['failed_files'] += 1
-                    error = DecodeError(task.file_path, original_error=e)
-                    self.error_collector.add_error(error, task.file_path)
-                    logger.error(f"❌ [{completed}/{len(processable_tasks)}] {Path(task.file_path).name}: {e}")
-                
-                # 定期清理内存
-                if completed % 5 == 0:
-                    cleaned = self.resource_manager.memory_manager.cleanup_if_needed()
-                    if cleaned:
-                        self.stats['total_memory_cleaned_mb'] += 100  # 估算清理量
-                
-                # 调用进度回调
-                if progress_callback:
-                    progress_callback(completed, len(processable_tasks))
-        
-        # 生成汇总报告
-        if successful_results:
-            formatter = JSONFormatter(str(self.output_dir))
-            summary_file = formatter.generate_summary_report(successful_results)
-            logger.info(f"生成汇总报告: {summary_file}")
-        
-        # 保存错误报告
-        if save_error_report and (self.error_collector.has_errors() or self.error_collector.has_warnings()):
-            error_report_file = self.output_dir / "error_report.json"
-            import json
-            with open(error_report_file, 'w', encoding='utf-8') as f:
-                json.dump(self.error_collector.generate_error_report(), f, indent=2, ensure_ascii=False)
-            logger.info(f"生成错误报告: {error_report_file}")
-        
-        total_time = time.time() - start_time
-        self.stats['total_processing_time'] = total_time
+                            progress.update(task_progress_bars[update.task_id], completed=update.processed, total=update.total if update.total > 0 else None)
+
+                    except queue.Empty:
+                        # 检查是否有任务已经完成但没有发送进度
+                        done_futures = [f for f in future_to_task if f.done()]
+                        if len(done_futures) == len(processable_tasks) and self.progress_queue.empty():
+                            break # 所有任务完成
+
+                # 收集最终结果
+                for future in as_completed(future_to_task):
+                    task = future_to_task[future]
+                    try:
+                        result = future.result(timeout=1)
+                        self._handle_result(result)
+                    except Exception as e:
+                        logger.error(f"任务 {task.file_path} 产生未捕获异常: {e}", exc_info=True)
+                        self.stats['failed_files'] += 1
+                        error = FileError(file_path=task.file_path, operation=type(e).__name__, original_error=e)
+                        self.error_collector.add_error(error)
+
+        # 最终清理和报告
+        end_time = time.time()
+        self.stats['total_processing_time'] = end_time - start_time
         
         return self._build_summary()
     
@@ -429,7 +471,22 @@ class EnhancedBatchProcessor:
         avg_packets_per_file = (total_packets / successful_files) if successful_files > 0 else 0
         avg_time_per_file = (total_time / processed_files) if processed_files > 0 else 0
         packets_per_second = (total_packets / total_time) if total_time > 0 else 0
+        parallelization_efficiency = min(100, round(processed_files / total_time / self.max_workers * 100, 1))
         
+        # 性能指标
+        performance_metrics = {
+            'total_processing_time': total_time,
+            'packets_per_second': packets_per_second,
+            'average_time_per_file': avg_time_per_file,
+            'parallelization_efficiency': parallelization_efficiency
+        }
+        
+        # 资源使用情况
+        resource_summary = {}
+        if self.resource_manager and self.resource_manager.monitor:
+            resource_summary = self.resource_manager.monitor.get_usage_summary()
+
+        # 构建最终报告
         summary = {
             'processing_summary': {
                 'total_files': total_files,
@@ -440,17 +497,8 @@ class EnhancedBatchProcessor:
                 'total_packets_processed': total_packets,
                 'total_processing_time': round(total_time, 3)
             },
-            'performance_metrics': {
-                'average_packets_per_file': round(avg_packets_per_file, 1),
-                'average_time_per_file': round(avg_time_per_file, 3),
-                'packets_per_second': round(packets_per_second, 1),
-                'parallelization_efficiency': min(100, round(processed_files / total_time / self.max_workers * 100, 1))
-            },
-            'resource_metrics': {
-                'peak_memory_mb': round(self.stats['peak_memory_mb'], 1),
-                'total_memory_cleaned_mb': round(self.stats['total_memory_cleaned_mb'], 1),
-                'resource_status': self.resource_manager.get_comprehensive_status()
-            },
+            'performance_metrics': performance_metrics,
+            'resource_metrics': resource_summary,
             'configuration': {
                 'max_workers': self.max_workers,
                 'task_timeout': self.task_timeout,

@@ -11,6 +11,7 @@ from pathlib import Path
 from __init__ import __version__
 from core import BatchProcessor
 from utils.progress import create_progress_monitor, ProgressUpdate
+from typing import Optional
 
 
 def setup_logging(verbose: bool):
@@ -40,8 +41,8 @@ def setup_logging(verbose: bool):
 @click.command()
 @click.option('-i', '--input', 'input_dir', required=True, 
               help='输入目录路径，包含PCAP/PCAPNG文件')
-@click.option('-o', '--output', 'output_dir', required=True,
-              help='输出目录路径，用于保存JSON结果')
+@click.option('-o', '--output', 'output_dir', default=None,
+              help='输出目录路径，用于保存JSON结果 (默认: 与输入文件同目录)')
 @click.option('-j', '--jobs', default=None, type=int,
               help='并发处理进程数 (默认: CPU核心数)')
 @click.option('--max-packets', default=None, type=int,
@@ -85,18 +86,25 @@ def main(input_dir, output_dir, jobs, max_packets, timeout, dry_run, verbose,
         click.echo(f"❌ 错误: 输入路径不是目录: {input_dir}", err=True)
         sys.exit(1)
     
-    # 创建输出目录
-    output_path = Path(output_dir)
-    try:
-        output_path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        click.echo(f"❌ 错误: 无法创建输出目录: {e}", err=True)
-        sys.exit(1)
-    
+    # 如果指定了输出目录，则创建它
+    if output_dir:
+        output_path = Path(output_dir)
+        try:
+            output_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            click.echo(f"❌ 错误: 无法创建输出目录: {e}", err=True)
+            sys.exit(1)
+    else:
+        # 当 output_dir 为 None 时，输出路径将基于输入文件
+        output_path = "与输入文件同目录"
+
     if verbose:
         click.echo(f"🔧 PCAP解码器 v{__version__}")
         click.echo(f"📂 输入目录: {input_path.absolute()}")
-        click.echo(f"📁 输出目录: {output_path.absolute()}")
+        if output_dir:
+            click.echo(f"📁 输出目录: {Path(output_dir).absolute()}")
+        else:
+            click.echo(f"📁 输出目录: 与输入文件同目录")
         if jobs:
             click.echo(f"⚙️  并发进程: {jobs}")
         else:
@@ -156,22 +164,25 @@ def _run_dry_mode(input_dir: str, verbose: bool):
     click.echo("🧪 试运行完成")
 
 
-def _run_processing_mode(input_dir: str, output_dir: str, jobs: int, 
+def _run_processing_mode(input_dir: str, output_dir: Optional[str], jobs: int, 
                         max_packets: int, timeout: int, verbose: bool,
                         error_report: bool, streaming_threshold: int):
     """运行实际处理模式"""
     
+    # 动态导入以避免循环依赖或过早初始化
+    from core.processor import EnhancedBatchProcessor
+    
     # 初始化批量处理器
-    processor = BatchProcessor(
+    processor = EnhancedBatchProcessor(
         output_dir=output_dir,
         max_workers=jobs,
         task_timeout=timeout,
-        max_packets=max_packets
+        max_packets=max_packets,
+        enable_resource_monitoring=not verbose  # 在非详细模式下启用资源监控
     )
     
     # 更新格式化器的流式输出阈值
-    from core.formatter import JSONFormatter
-    # 这里可以通过参数传递给processor，让它配置formatter
+    # 注意: 此功能需要 Processor 支持
     
     # 创建进度监控器
     progress_monitor = create_progress_monitor(
@@ -192,7 +203,8 @@ def _run_processing_mode(input_dir: str, output_dir: str, jobs: int,
         # 执行批量处理
         result_summary = processor.process_files(
             input_dir=input_dir,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            save_error_report=error_report
         )
         
         # 显示最终结果
@@ -203,7 +215,7 @@ def _run_processing_mode(input_dir: str, output_dir: str, jobs: int,
         raise
 
 
-def _display_final_results(summary: dict, verbose: bool, error_report: bool, output_dir: str):
+def _display_final_results(summary: dict, verbose: bool, error_report: bool, output_dir: Optional[str]):
     """显示最终处理结果"""
     processing = summary.get('processing_summary', {})
     performance = summary.get('performance_metrics', {})

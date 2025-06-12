@@ -27,6 +27,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 新增导入
+from Pkt2TXT.utils.helpers import get_file_size_mb
 
 class Stage4Validator:
     """阶段4功能验证器"""
@@ -325,8 +327,8 @@ class Stage4Validator:
             small_is_large = handler.is_large_file(str(small_file))
             large_is_large = handler.is_large_file(str(large_file))
             
-            small_size = handler.get_file_size_mb(str(small_file))
-            large_size = handler.get_file_size_mb(str(large_file))
+            small_size = get_file_size_mb(str(small_file))
+            large_size = get_file_size_mb(str(large_file))
             
             test_result = {
                 'name': '文件大小检查',
@@ -408,7 +410,7 @@ class Stage4Validator:
             
             if large_file.exists():
                 estimated_memory = handler.estimate_processing_memory(str(large_file))
-                actual_size = handler.get_file_size_mb(str(large_file))
+                actual_size = get_file_size_mb(str(large_file))
                 
                 # 估算应该是文件大小的2-3倍
                 expected_min = actual_size * 2

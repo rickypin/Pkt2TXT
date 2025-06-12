@@ -16,6 +16,8 @@ from typing import Dict, Any, Optional, List, Callable
 from dataclasses import dataclass
 import weakref
 
+from .helpers import get_file_size_mb
+
 logger = logging.getLogger(__name__)
 
 
@@ -306,24 +308,23 @@ class LargeFileHandler:
             max_file_size_mb: 最大文件大小（MB）
         """
         self.chunk_size_bytes = int(chunk_size_mb * 1024 * 1024)
-        self.temp_dir = Path(temp_dir) if temp_dir else Path(tempfile.gettempdir())
         self.max_file_size_bytes = int(max_file_size_mb * 1024 * 1024)
+        
+        if temp_dir:
+            self.temp_dir = Path(temp_dir)
+            self.temp_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            self.temp_dir = Path(tempfile.gettempdir())
+        
         self.temp_files: List[Path] = []
     
     def is_large_file(self, file_path: str) -> bool:
         """检查是否为大文件"""
         try:
-            file_size = Path(file_path).stat().st_size
-            return file_size > self.max_file_size_bytes
+            file_size_mb = get_file_size_mb(file_path)
+            return file_size_mb * 1024 * 1024 > self.max_file_size_bytes
         except OSError:
             return False
-    
-    def get_file_size_mb(self, file_path: str) -> float:
-        """获取文件大小（MB）"""
-        try:
-            return Path(file_path).stat().st_size / 1024 / 1024
-        except OSError:
-            return 0.0
     
     def create_temp_file(self, suffix: str = '.tmp') -> Path:
         """创建临时文件"""
@@ -332,23 +333,18 @@ class LargeFileHandler:
         return temp_file
     
     def cleanup_temp_files(self):
-        """清理临时文件"""
-        cleaned = 0
+        """清理所有临时文件"""
         for temp_file in self.temp_files:
             try:
-                if temp_file.exists():
-                    temp_file.unlink()
-                    cleaned += 1
-            except Exception as e:
-                logger.warning(f"清理临时文件失败: {temp_file} - {e}")
-        
+                os.remove(temp_file)
+                logger.debug(f"已清理临时文件: {temp_file}")
+            except OSError as e:
+                logger.warning(f"清理临时文件失败: {temp_file}, 错误: {e}")
         self.temp_files.clear()
-        if cleaned > 0:
-            logger.info(f"清理了 {cleaned} 个临时文件")
     
     def estimate_processing_memory(self, file_path: str) -> float:
         """估算处理文件所需的内存（MB）"""
-        file_size_mb = self.get_file_size_mb(file_path)
+        file_size_mb = get_file_size_mb(file_path)
         # 经验估算：文件大小的2-3倍内存用于解析和处理
         estimated_memory_mb = file_size_mb * 2.5
         return estimated_memory_mb
@@ -369,61 +365,55 @@ class ResourceManager:
             disk_thresholds: 磁盘阈值配置
             enable_monitoring: 是否启用监控
         """
-        self.monitor = ResourceMonitor(
-            memory_thresholds=memory_thresholds,
-            disk_thresholds=disk_thresholds
-        )
         self.memory_manager = MemoryManager()
         self.file_handler = LargeFileHandler()
         
-        # 注册资源管理回调
-        self.monitor.add_warning_callback(self._handle_resource_warning)
-        self.monitor.add_critical_callback(self._handle_resource_critical)
-        
         if enable_monitoring:
-            self.monitor.start_monitoring()
+            self.monitor = ResourceMonitor(memory_thresholds=memory_thresholds, disk_thresholds=disk_thresholds)
+            self.monitor.add_critical_callback(self._handle_resource_critical)
+            self.monitor.add_warning_callback(self._handle_resource_warning)
+        else:
+            self.monitor = None
     
     def _handle_resource_warning(self, message: str, usage: ResourceUsage):
-        """处理资源警告"""
-        logger.warning(f"资源警告: {message}")
-        # 尝试清理内存
-        if usage.memory_percent > 70:
-            self.memory_manager.cleanup_if_needed(usage.memory_mb * 0.8)
+        logger.warning(f"ResourceManager 收到资源警告: {message}")
+        # 这里可以添加更复杂的逻辑，例如减慢处理速度
     
     def _handle_resource_critical(self, message: str, usage: ResourceUsage):
-        """处理资源临界情况"""
-        logger.critical(f"资源临界: {message}")
-        # 强制清理内存
-        self.memory_manager.force_garbage_collection()
-        # 清理临时文件
-        self.file_handler.cleanup_temp_files()
+        logger.critical(f"ResourceManager 收到资源临界警告: {message}")
+        # 这里可以触发停止处理等关键操作
     
     def check_file_processable(self, file_path: str) -> Dict[str, Any]:
         """检查文件是否可以处理"""
-        file_size_mb = self.file_handler.get_file_size_mb(file_path)
-        estimated_memory_mb = self.file_handler.estimate_processing_memory(file_path)
-        current_usage = self.monitor.get_current_usage()
-        
-        # 检查可用内存
-        available_memory_mb = (100 - current_usage.memory_percent) * current_usage.memory_mb / current_usage.memory_percent
-        memory_sufficient = available_memory_mb > estimated_memory_mb
-        
-        # 检查磁盘空间
-        required_disk_gb = file_size_mb / 1024 * 1.5  # 估计需要1.5倍的输出空间
-        disk_sufficient = current_usage.disk_free_gb > required_disk_gb
-        
-        return {
-            'file_size_mb': file_size_mb,
-            'estimated_memory_mb': estimated_memory_mb,
-            'available_memory_mb': available_memory_mb,
-            'memory_sufficient': memory_sufficient,
-            'disk_sufficient': disk_sufficient,
-            'is_large_file': self.file_handler.is_large_file(file_path),
-            'can_process': memory_sufficient and disk_sufficient,
-            'recommendations': self._get_processing_recommendations(
+        try:
+            file_size_mb = get_file_size_mb(file_path)
+            estimated_memory_mb = self.file_handler.estimate_processing_memory(file_path)
+            
+            if self.monitor:
+                current_usage = self.monitor.get_current_usage()
+                available_memory_mb = self.monitor.memory_thresholds.critical_mb - current_usage.memory_mb
+                disk_sufficient = current_usage.disk_free_gb > self.monitor.disk_thresholds.min_free_gb
+            else:
+                # 如果监控关闭，则进行保守估计
+                available_memory_mb = 2000  # 假设有2GB可用内存
+                disk_sufficient = True
+
+            recommendations = self._get_processing_recommendations(
                 file_size_mb, estimated_memory_mb, available_memory_mb, disk_sufficient
             )
-        }
+            
+            can_process = 'skip' not in recommendations
+            
+            return {
+                'can_process': can_process,
+                'file_size_mb': file_size_mb,
+                'estimated_memory_mb': estimated_memory_mb,
+                'recommendations': recommendations,
+                'is_large_file': self.file_handler.is_large_file(file_path)
+            }
+        except Exception as e:
+            logger.error(f"检查文件可处理性时出错: {e}")
+            return {'can_process': False, 'recommendations': ['error'], 'is_large_file': False}
     
     def _get_processing_recommendations(self, file_size_mb: float, estimated_memory_mb: float,
                                        available_memory_mb: float, disk_sufficient: bool) -> List[str]:
@@ -465,7 +455,8 @@ class ResourceManager:
         logger.info("开始全面资源清理...")
         
         # 停止监控
-        self.monitor.stop_monitoring()
+        if self.monitor:
+            self.monitor.stop_monitoring()
         
         # 清理内存
         self.memory_manager.force_garbage_collection()

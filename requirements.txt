@@ -4,6 +4,7 @@
 pyshark>=0.6.0         # PCAP解析库
 click>=8.0.0           # 命令行接口
 tqdm>=4.60.0           # 进度条显示
+rich
 
 # 数据处理
 dataclasses-json>=0.5.0   # 数据类JSON序列化
@@ -17,3 +18,6 @@ pytest-mock>=3.6.0     # 测试模拟
 black>=22.0.0          # 代码格式化
 flake8>=4.0.0          # 代码检查
 mypy>=0.900            # 类型检查 
+
+# 新增依赖
+scapy 

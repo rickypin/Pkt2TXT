@@ -126,40 +126,30 @@ class ValidationError(PCAPDecoderError):
 
 
 class ErrorCollector:
-    """错误收集器，用于批量处理时收集和管理错误"""
+    """错误收集器，用于聚合和报告多个文件的错误"""
     
     def __init__(self):
-        """初始化错误收集器"""
-        self.errors = []
+        self.errors: List[PCAPDecoderError] = []
         self.warnings = []
         self.file_errors = {}
     
-    def add_error(self, error: PCAPDecoderError, file_path: str = None):
+    def add_error(self, error: PCAPDecoderError, file_path: Optional[str] = None):
         """
-        添加错误
+        添加一个错误到收集器
         
         Args:
-            error: 错误对象
-            file_path: 文件路径（可选）
+            error (PCAPDecoderError): 错误对象
+            file_path (Optional[str], optional): 关联的文件路径. Defaults to None.
         """
-        import time
-        
-        error_record = {
-            'timestamp': time.time(),
-            'error': error,
-            'message': error.message,
-            'details': error.details,
-            'file_path': file_path or error.details.get('file_path'),
-            'error_type': type(error).__name__
-        }
-        
-        self.errors.append(error_record)
+        if file_path and not error.file_path:
+            error.file_path = file_path
+        self.errors.append(error)
         
         # 按文件组织错误
         file_key = file_path or error.details.get('file_path', 'unknown')
         if file_key not in self.file_errors:
             self.file_errors[file_key] = []
-        self.file_errors[file_key].append(error_record)
+        self.file_errors[file_key].append(error)
     
     def add_warning(self, message: str, file_path: str = None, details: Dict[str, Any] = None):
         """
@@ -194,8 +184,8 @@ class ErrorCollector:
             Dict[str, Any]: 错误汇总信息
         """
         error_types = {}
-        for error_record in self.errors:
-            error_type = error_record['error_type']
+        for error in self.errors:
+            error_type = type(error).__name__
             error_types[error_type] = error_types.get(error_type, 0) + 1
         
         files_with_errors = len(self.file_errors)
@@ -225,10 +215,10 @@ class ErrorCollector:
             'errors_by_file': {
                 file_path: [
                     {
-                        'timestamp': error['timestamp'],
-                        'message': error['message'],
-                        'error_type': error['error_type'],
-                        'details': error['details']
+                        'timestamp': error.timestamp,
+                        'message': error.message,
+                        'error_type': type(error).__name__,
+                        'details': error.details
                     }
                     for error in errors
                 ]
@@ -245,13 +235,13 @@ class ErrorCollector:
             ],
             'all_errors': [
                 {
-                    'timestamp': e['timestamp'],
-                    'message': e['message'],
-                    'error_type': e['error_type'],
-                    'file_path': e['file_path'],
-                    'details': e['details']
+                    'timestamp': error.timestamp,
+                    'message': error.message,
+                    'error_type': type(error).__name__,
+                    'file_path': error.file_path,
+                    'details': error.details
                 }
-                for e in self.errors
+                for error in self.errors
             ]
         }
     
@@ -267,4 +257,8 @@ class ErrorCollector:
         """清除所有错误和警告"""
         self.errors.clear()
         self.warnings.clear()
-        self.file_errors.clear() 
+        self.file_errors.clear()
+
+    def get_errors(self) -> List[PCAPDecoderError]:
+        """获取所有错误"""
+        return self.errors 
