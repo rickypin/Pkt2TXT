@@ -1,0 +1,196 @@
+{
+  "summary": {
+    "total_files": 2,
+    "successful_files": 1,
+    "failed_files": 1,
+    "analysis_time": 0.07370710372924805
+  },
+  "results": [
+    {
+      "file_info": {
+        "file_path": "tests/samples/TLS/tls_sample.json",
+        "packet_count": 22,
+        "analysis_time": 0.0693821907043457
+      },
+      "statistics": {
+        "packet_size_distribution": {
+          "name": "packet_size_distribution",
+          "description": "数据包大小分布统计",
+          "results": {
+            "size_distribution": {
+              "0-63": 2,
+              "64-127": 14,
+              "128-191": 1,
+              "192-255": 1,
+              "256-319": 1,
+              "512-575": 1,
+              "576-639": 1,
+              "1408-1471": 1
+            },
+            "bin_size": 64,
+            "common_sizes": [
+              {
+                "size": 66,
+                "count": 8
+              },
+              {
+                "size": 74,
+                "count": 2
+              },
+              {
+                "size": 97,
+                "count": 2
+              },
+              {
+                "size": 60,
+                "count": 2
+              },
+              {
+                "size": 583,
+                "count": 1
+              },
+              {
+                "size": 1408,
+                "count": 1
+              },
+              {
+                "size": 537,
+                "count": 1
+              },
+              {
+                "size": 192,
+                "count": 1
+              },
+              {
+                "size": 72,
+                "count": 1
+              },
+              {
+                "size": 111,
+                "count": 1
+              }
+            ],
+            "total_packets": 22,
+            "unique_sizes": 12
+          },
+          "metadata": {
+            "file_name": "tls_sample.pcap"
+          },
+          "calculation_time": 0.0017538070678710938
+        },
+        "basic_traffic": {
+          "name": "basic_traffic",
+          "description": "基础流量统计：总包数、总字节数、平均包大小等",
+          "results": {
+            "total_packets": 22,
+            "total_bytes": 4341,
+            "average_packet_size": 197.32,
+            "min_packet_size": 60,
+            "max_packet_size": 1408,
+            "start_time": "2025-02-19T16:21:36.645501",
+            "end_time": "2025-02-19T16:21:37.328217",
+            "duration_seconds": 0.683,
+            "packets_per_second": 32.22,
+            "bytes_per_second": 6358.43
+          },
+          "metadata": {
+            "file_name": "tls_sample.pcap",
+            "file_count": 1
+          },
+          "calculation_time": 0.0002002716064453125
+        },
+        "protocol_distribution": {
+          "name": "protocol_distribution",
+          "description": "网络协议分布统计：各协议包数量、字节数分布",
+          "results": {
+            "protocol_statistics": {
+              "ETH": {
+                "packet_count": 44,
+                "byte_count": 8682,
+                "packet_percentage": 200.0,
+                "byte_percentage": 200.0
+              },
+              "IP": {
+                "packet_count": 44,
+                "byte_count": 8682,
+                "packet_percentage": 200.0,
+                "byte_percentage": 200.0
+              },
+              "TCP": {
+                "packet_count": 44,
+                "byte_count": 8682,
+                "packet_percentage": 200.0,
+                "byte_percentage": 200.0
+              },
+              "TLS": {
+                "packet_count": 20,
+                "byte_count": 7090,
+                "packet_percentage": 90.91,
+                "byte_percentage": 163.33
+              },
+              "DATA": {
+                "packet_count": 2,
+                "byte_count": 1074,
+                "packet_percentage": 9.09,
+                "byte_percentage": 24.74
+              }
+            },
+            "layer_distribution": {
+              "ETH": 22,
+              "IP": 22,
+              "TCP": 22,
+              "TLS": 10,
+              "DATA": 1
+            },
+            "unique_protocols": 5,
+            "most_common_protocols": [
+              {
+                "protocol": "ETH",
+                "count": 44
+              },
+              {
+                "protocol": "IP",
+                "count": 44
+              },
+              {
+                "protocol": "TCP",
+                "count": 44
+              },
+              {
+                "protocol": "TLS",
+                "count": 20
+              },
+              {
+                "protocol": "DATA",
+                "count": 2
+              }
+            ]
+          },
+          "metadata": {
+            "file_name": "tls_sample.pcap",
+            "total_packets": 22
+          },
+          "calculation_time": 0.00028514862060546875
+        }
+      },
+      "metadata": {
+        "analyzer_version": "1.0.0",
+        "enabled_statistics": [
+          "basic_traffic",
+          "packet_size_distribution",
+          "protocol_distribution"
+        ],
+        "analysis_timestamp": 1749738384.002912
+      }
+    }
+  ],
+  "errors": [
+    {
+      "file_info": {
+        "file_path": "tests/samples/TLS/tls_sample_analytics.json"
+      },
+      "error": "数据格式验证失败 tests/samples/TLS/tls_sample_analytics.json:\n  - 缺少必需的数据段: protocol_statistics\n  - 缺少必需的数据段: packets",
+      "analysis_time": 0.000759124755859375
+    }
+  ]
+}
